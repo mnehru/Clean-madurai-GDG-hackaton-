@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bathroom Finder 🚻</title>
+    <meta name="description"
+        content="Find the nearest public toilet instantly. Helping reduce public urination by making restrooms discoverable in seconds." />
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+
+    <style>
+        /* ── Design Tokens ──────────────────────────────────────── */
+        :root {
+            --primary: #14b8a6;
+            /* teal-500  */
+            --primary-dk: #0d9488;
+            /* teal-600  */
+            --accent: #f59e0b;
+            /* amber-400 */
+            --danger: #ef4444;
+            /* red-500   */
+            --bg: #0f172a;
+            /* slate-900 */
+            --surface: #1e293b;
+            /* slate-800 */
+            --card: #334155;
+            /* slate-700 */
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --radius: 14px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, .45);
+        }
+
+        /* ── Reset / Base ───────────────────────────────────────── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        /* ── Layout ─────────────────────────────────────────────── */
+        .app-wrapper {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* ── Impact Banner ──────────────────────────────────────── */
+        .impact-banner {
+            background: linear-gradient(135deg, var(--primary-dk) 0%, #0891b2 100%);
+            text-align: center;
+            padding: 10px 16px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .impact-banner span {
+            opacity: 0.9;
+        }
+
+        /* ── Header ─────────────────────────────────────────────── */
+        header {
+            background: var(--surface);
+            padding: 16px 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+            position: relative;
+            z-index: 10;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--primary) 0%, #0891b2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            box-shadow: 0 4px 12px rgba(20, 184, 166, .4);
+        }
+
+        .logo-text h1 {
+            font-size: 1.1rem;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .logo-text p {
+            font-size: 0.72rem;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        /* ── Stats Row ──────────────────────────────────────────── */
+        .stats-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .stat-chip {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s;
+        }
+
+        .stat-chip .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--muted);
+        }
+
+        .stat-chip.active .dot {
+            background: var(--primary);
+            box-shadow: 0 0 6px var(--primary);
+        }
+
+        .stat-chip.danger .dot {
+            background: var(--danger);
+            box-shadow: 0 0 6px var(--danger);
+        }
+
+        /* ── Find Button ─────────────────────────────────────────── */
+        #find-btn {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dk) 100%);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 18px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            transition: transform 0.15s, box-shadow 0.15s;
+            box-shadow: 0 4px 14px rgba(20, 184, 166, .4);
+            white-space: nowrap;
+        }
+
+        #find-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(20, 184, 166, .55);
+        }
+
+        #find-btn:active {
+            transform: translateY(0);
+        }
+
+        #find-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Spinner ── shown while loading */
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2.5px solid rgba(255, 255, 255, .3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: none;
+        }
+
+        .loading .spinner {
+            display: block;
+        }
+
+        .loading .btn-icon {
+            display: none;
+        }
+
+        /* ── Map ─────────────────────────────────────────────────── */
+        #map {
+            flex: 1;
+            min-height: 300px;
+        }
+
+        /* ── Bottom Panel ────────────────────────────────────────── */
+        #bottom-panel {
+            background: var(--surface);
+            padding: 16px 20px;
+            box-shadow: 0 -2px 14px rgba(0, 0, 0, .35);
+            min-height: 100px;
+        }
+
+        /* ── Status Messages ─────────────────────────────────────── */
+        #status-msg {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 10px;
+            min-height: 18px;
+        }
+
+        /* ── Warning banner ──────────────────────────────────────── */
+        #warn-banner {
+            background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+            border: 1px solid #ef4444;
+            border-radius: var(--radius);
+            padding: 12px 16px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            animation: slideIn 0.4s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── Nearest Toilet Card ─────────────────────────────────── */
+        #nearest-card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 14px 16px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            animation: slideIn 0.4s ease;
+        }
+
+        .card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--primary);
+        }
+
+        .card-dist {
+            background: var(--primary);
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .card-name {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .card-coords {
+            font-size: 0.72rem;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ── Action Buttons ──────────────────────────────────────── */
+        .action-btn {
+            flex: 1;
+            min-width: 120px;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-decoration: none;
+            transition: transform 0.15s, filter 0.15s;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+        }
+
+        .action-btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-directions {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #fff;
+        }
+
+        .btn-center {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--card);
+        }
+
+        /* ── Custom Leaflet Marker styles ────────────────────────── */
+        .toilet-marker-icon {
+            background: var(--primary);
+            border-radius: 50%;
+            border: 3px solid #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: transform 0.2s;
+        }
+
+        .toilet-marker-icon.nearest {
+            background: var(--accent);
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, .35), 0 2px 8px rgba(0, 0, 0, .4);
+            animation: pulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.15);
+            }
+        }
+
+        .user-marker-icon {
+            background: #3b82f6;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 0 5px rgba(59, 130, 246, .3), 0 2px 8px rgba(0, 0, 0, .4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        /* Leaflet popup styles */
+        .leaflet-popup-content-wrapper {
+            background: var(--surface) !important;
+            color: var(--text) !important;
+            border-radius: 12px !important;
+            border: 1px solid var(--card) !important;
+            box-shadow: var(--shadow) !important;
+        }
+
+        .leaflet-popup-tip {
+            background: var(--surface) !important;
+        }
+
+        .leaflet-popup-content {
+            margin: 10px 14px !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 0.82rem !important;
+        }
+
+        .popup-title {
+            font-weight: 700;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+
+        .popup-dist {
+            color: var(--primary);
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .popup-link {
+            color: var(--accent);
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.78rem;
+        }
+
+        /* ── Review Stars ────────────────────────────────────────── */
+        .rating-stars {
+            display: flex;
+            gap: 4px;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .star {
+            opacity: 0.3;
+            transition: opacity 0.2s;
+        }
+
+        .star.filled {
+            opacity: 1;
+        }
+
+        .review-item {
+            background: var(--surface);
+            padding: 8px;
+            border-radius: 8px;
+            margin-top: 6px;
+            font-size: 0.75rem;
+            border-left: 3px solid var(--primary);
+        }
+
+        /* ── Model / Add Mode UI ─────────────────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 20px;
+        }
+
+        /* ═══ Add Modal ══════════════════════════════════════════════ */
+        .modal-overlay.success-modal-style {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: flex-end;
+            z-index: 2000;
+            padding: 15px;
+            animation: fadeIn 0.3s;
+        }
+
+        .modal-content {
+            background: var(--surface);
+            width: 100%;
+            max-width: 400px;
+            padding: 24px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--card);
+            animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+
+        .modal-content input,
+        .modal-content select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: var(--card);
+            border: 1px solid var(--card);
+            color: var(--text);
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .modal-cancel {
+            background: transparent;
+            border: 1px solid var(--card);
+            color: var(--muted);
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+
+        /* ═══ Success Modal ══════════════════════════════════════════ */
+        .success-icon-container {
+            width: 80px;
+            height: 80px;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 20px auto;
+            color: #22c55e;
+            font-size: 40px;
+            /* Using direct color for success */
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .success-title {
+            color: #22c55e;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        /* Using direct color for success */
+        .success-text {
+            color: var(--muted);
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0);
+            }
+
+            80% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .modal {
+            background: var(--surface);
+            width: 100%;
+            max-width: 400px;
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        .form-group input,
+        .form-group select {
+            background: var(--card);
+            border: 1px solid var(--card);
+            border-radius: 8px;
+            padding: 10px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .fab-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .fab-locate {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: var(--surface);
+            color: var(--primary);
+            font-size: 1.2rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        .fab-locate:hover {
+            transform: scale(1.05);
+            background: var(--card);
+        }
+
+        .fab-locate svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* ═══ Blue Dot Marker ════════════════════════════════════════ */
+        .blue-dot {
+            width: 16px;
+            height: 16px;
+            background-color: #4285F4;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+
+        .blue-dot::after {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            border-radius: 50%;
+            background-color: rgba(66, 133, 244, 0.4);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 0.8;
+            }
+
+            100% {
+                transform: scale(3);
+                opacity: 0;
+            }
+        }
+
+        .fab {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: none;
+            background: var(--primary);
+            color: #fff;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+
+        .fab.active {
+            background: var(--danger);
+            transform: rotate(45deg);
+        }
+
+        .add-mode-hint {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--danger);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 700;
+            z-index: 1001;
+            display: none;
+        }
+
+        .toilet-marker-icon.user-added {
+            background: #8b5cf6;
+            border-color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-wrapper">
+
+        <!-- ① Impact Banner -->
+        <div class="impact-banner">
+            🌿 <span>Helping reduce public urination by making restrooms discoverable in seconds.</span>
+        </div>
+
+        <!-- ② Header -->
+        <header>
+            <div class="header-top">
+                <div class="logo">
+                    <div class="logo-icon">🚻</div>
+                    <div class="logo-text">
+                        <h1>Bathroom Finder</h1>
+                        <p>Clean City · Open Data · Real-time</p>
+                    </div>
+                </div>
+
+                <!-- Find Toilet Button -->
+                <button id="find-btn" onclick="findToilets()">
+                    <div class="spinner"></div>
+                    <span class="btn-icon">📍</span>
+                    <span class="btn-text">Find Toilet Now</span>
+                </button>
+            </div>
+
+            <!-- Success Modal -->
+            <div class="modal-overlay success-modal-style" id="success-modal">
+                <div class="modal-content">
+                    <div class="success-icon-container">🎉</div>
+                    <h3 class="success-title">Thank You!</h3>
+                    <p class="success-text">Your contribution has been saved. By adding this location, you're directly
+                        helping to keep Madurai clean and improving life for everyone in the city.</p>
+                    <button class="action-btn btn-directions"
+                        onclick="document.getElementById('success-modal').style.display='none'">You're Welcome!</button>
+                </div>
+            </div>
+
+            <!-- Stats row -->
+            <div class="stats-row">
+                <div class="stat-chip" id="chip-gps">
+                    <div class="dot"></div>
+                    <span id="chip-gps-text">GPS: --</span>
+                </div>
+                <div class="stat-chip" id="chip-count">
+                    <div class="dot"></div>
+                    <span id="chip-count-text">Toilets found: --</span>
+                </div>
+                <div class="stat-chip" id="chip-nearest">
+                    <div class="dot"></div>
+                    <span id="chip-nearest-text">Nearest: --</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- ③ Map Area -->
+        <div style="flex:1; position:relative; display:flex; flex-direction:column;">
+            <div id="map"></div>
+            <div id="add-hint" class="add-mode-hint">Tap on the map to mark a new toilet!</div>
+            <div class="fab-container">
+                <button id="locate-btn" class="fab-locate" onclick="centerOnUser()" title="Locate Me">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 2v2"></path>
+                        <path d="M12 20v2"></path>
+                        <path d="M2 12h2"></path>
+                        <path d="M20 12h2"></path>
+                        <circle cx="12" cy="12" r="4"></circle>
+                    </svg>
+                </button>
+                <button id="add-mode-btn" class="fab" onclick="toggleAddMode()" title="Add New Toilet">➕</button>
+            </div>
+        </div>
+
+        <!-- ④ Bottom Panel -->
+        <div id="bottom-panel">
+            <div id="status-msg">Tap "Find Toilet Now" to detect your location and search nearby restrooms.</div>
+
+            <!-- Infrastructure gap warning -->
+            <div id="warn-banner">
+                ⚠️ No restroom within 500 m — city infrastructure gap detected in this area.
+            </div>
+
+            <!-- Nearest toilet card -->
+            <div id="nearest-card">
+                <div class="card-top">
+                    <span class="card-label">⭐ Detailed Info</span>
+                    <span class="card-dist" id="card-dist-badge">-- m</span>
+                </div>
+                <div>
+                    <div class="card-name" id="card-name">Public Toilet</div>
+                    <div class="card-coords" id="card-coords"></div>
+                </div>
+
+                <!-- Review Section -->
+                <div id="review-section" style="margin-top: 8px; border-top: 1px solid var(--card); padding-top: 8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:0.75rem; font-weight:600; color:var(--muted);">Community Reviews</span>
+                        <div class="rating-stars" id="input-stars">
+                            <span class="star" data-val="1">★</span>
+                            <span class="star" data-val="2">★</span>
+                            <span class="star" data-val="3">★</span>
+                            <span class="star" data-val="4">★</span>
+                            <span class="star" data-val="5">★</span>
+                        </div>
+                    </div>
+                    <div id="reviews-list"></div>
+                    <div id="add-review-form" style="display:none; margin-top:8px; gap:6px;">
+                        <input type="text" id="review-text" placeholder="Add a note..."
+                            style="flex:1; background:var(--surface); border:1px solid var(--card); color:white; padding:5px; border-radius:4px;">
+                        <button onclick="saveReview()"
+                            style="background:var(--primary); color:white; border:none; padding:5px 10px; border-radius:4px;">Post</button>
+                    </div>
+                </div>
+
+                <div class="card-actions">
+                    <a id="directions-btn" class="action-btn btn-directions" href="#" target="_blank" rel="noopener">
+                        🗺️ Get Directions
+                    </a>
+                    <button class="action-btn btn-center" onclick="centerOnUser()">
+                        📌 My Location
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- .app-wrapper -->
+
+    <!-- Add Toilet Modal -->
+    <div id="add-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-title">New Restroom Found?</div>
+            <p style="font-size:0.8rem; color:var(--muted);">Shared via Firebase Firestore.</p>
+            <div class="form-group">
+                <label>Location Name</label>
+                <input type="text" id="new-name" placeholder="e.g. Periyar Bus Stand Toilet">
+            </div>
+            <div class="form-group">
+                <label>Access Type</label>
+                <select id="new-type">
+                    <option value="public">Public</option>
+                    <option value="pay">Pay & Use</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="action-btn btn-center" onclick="closeModal()">Cancel</button>
+                <button class="action-btn btn-directions" onclick="saveNewToilet()">Save Toilet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        /* ═══ Firebase Initialization ════════════════════════════════ */
+        let db;
+
+        async function initFirebase() {
+            try {
+                let text = "";
+                let source = "";
+
+                // Strategy: Try .env first (standard for local), then config.json (standard for production)
+                const attempts = ['.env', 'config.json'];
+                for (const file of attempts) {
+                    try {
+                        const r = await fetch(file);
+                        if (r.ok) {
+                            text = await r.text();
+                            source = file;
+                            break;
+                        }
+                    } catch (e) {
+                        console.warn(`Could not fetch ${file}:`, e);
+                    }
+                }
+
+                if (!text) {
+                    throw new Error("Could not find configuration file (.env or config.json). On production, ensure you renamed .env to config.json.");
+                }
+
+                const config = {};
+                text.split('\n').forEach(line => {
+                    const parts = line.split('=');
+                    if (parts.length >= 2) {
+                        const key = parts[0].trim();
+                        const value = parts.slice(1).join('=').trim();
+                        if (key === 'FIREBASE_API_KEY') config.apiKey = value;
+                        if (key === 'FIREBASE_AUTH_DOMAIN') config.authDomain = value;
+                        if (key === 'FIREBASE_PROJECT_ID') config.projectId = value;
+                        if (key === 'FIREBASE_STORAGE_BUCKET') config.storageBucket = value;
+                        if (key === 'FIREBASE_MESSAGING_SENDER_ID') config.messagingSenderId = value;
+                        if (key === 'FIREBASE_APP_ID') config.appId = value;
+                    }
+                });
+
+                if (!config.apiKey || config.apiKey.includes('YOUR_')) {
+                    throw new Error(`Missing or invalid credentials in ${source}.`);
+                }
+
+                firebase.initializeApp(config);
+                db = firebase.firestore();
+                console.log(`Firebase initialized successfully from ${source}`);
+                return true;
+            } catch (err) {
+                console.error("Firebase Initialization Error:", err);
+                setStatus("⚠️ Config Error: " + err.message);
+                return false;
+            }
+        }
+
+        /* ── Constants ─────────────────────────────────────────────── */
+        const SEARCH_RADIUS_M = 20000;
+        const OVERPASS_URLS = [
+            'https://overpass-api.de/api/interpreter',
+            'https://lz4.overpass-api.de/api/interpreter',
+            'https://overpass.kumi.systems/api/interpreter'
+        ];
+        const WARN_RADIUS_M = 500;
+        const DEFAULT_CENTER = [9.9252, 78.1198];
+        const DEFAULT_ZOOM = 13;
+
+        /* ── State ──────────────────────────────────────────────────── */
+        let map, userMarker, userLatLng;
+        let toiletMarkers = [];
+        let nearestMarker = null;
+        let addMode = false, pendingCoords = null, currentToiletId = null;
+
+        function initMap() {
+            if (map) return;
+            map = L.map('map', { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            map.on('click', (e) => {
+                if (!addMode) return;
+                pendingCoords = e.latlng;
+                toggleAddMode();
+                document.getElementById('add-modal').style.display = 'flex';
+            });
+        }
+
+        function toggleAddMode() {
+            addMode = !addMode;
+            document.getElementById('add-mode-btn').classList.toggle('active', addMode);
+            document.getElementById('add-hint').style.display = addMode ? 'block' : 'none';
+        }
+
+        function closeModal() { document.getElementById('add-modal').style.display = 'none'; }
+
+        async function saveNewToilet() {
+            if (!db) { const ok = await initFirebase(); if (!ok) return; }
+            const name = document.getElementById('new-name').value || 'Public Toilet';
+            const type = document.getElementById('new-type').value;
+            if (!pendingCoords) return;
+
+            // Immediately close Add form and show Success Modal to user
+            closeModal();
+            const successModal = document.getElementById('success-modal');
+            if (successModal) {
+                successModal.style.display = 'flex';
+            }
+
+            try {
+                setStatus('Saving to Firebase...');
+                await db.collection('community_toilets').add({
+                    name, lat: pendingCoords.lat, lng: pendingCoords.lng, type, isUserAdded: true, date: Date.now()
+                });
+                findToilets();
+            } catch (err) {
+                console.error("Firebase Save Error:", err);
+                // Show the error only in the small status bar at the bottom instead of blocking the screen
+                setStatus('⚠️ Save Failed: ' + err.message);
+            }
+        }
+
+        async function findToilets() {
+            if (!db) { const ok = await initFirebase(); if (!ok) return; }
+            setLoading(true); clearToilets();
+            let coords;
+            try {
+                setStatus('Getting location...');
+                coords = await getUserLocation();
+                console.log("📍 User Location:", coords);
+                document.getElementById('chip-gps-text').textContent = "GPS: Active";
+                document.getElementById('chip-gps').classList.add('active');
+            } catch (err) {
+                console.warn("Location error:", err);
+                coords = { latitude: DEFAULT_CENTER[0], longitude: DEFAULT_CENTER[1] };
+                document.getElementById('chip-gps-text').textContent = "GPS: Default";
+                document.getElementById('chip-gps').classList.remove('active');
+            }
+            userLatLng = L.latLng(coords.latitude, coords.longitude);
+            placeUserMarker(userLatLng);
+
+            try {
+                setStatus('Fetching toilets...');
+                const [osm, community] = await Promise.all([fetchOSM(coords), fetchCommunity()]);
+                console.log(`📊 Found: OSM=${osm.length}, Community=${community.length}`);
+
+                const all = [...osm, ...community].map(t => {
+                    const lat = t.lat ?? t.center?.lat;
+                    const lng = t.lng ?? t.lon ?? t.center?.lon;
+                    return { ...t, lat, lng, dist: getDistanceM(coords.latitude, coords.longitude, lat, lng) };
+                }).sort((a, b) => a.dist - b.dist);
+
+                document.getElementById('chip-count-text').textContent = `Toilets: ${all.length}`;
+                document.getElementById('chip-count').classList.toggle('active', all.length > 0);
+
+                if (!all.length) {
+                    const msg = osm.rateLimited ? "⚠️ OSM API is rate-limited. Add a toilet manually!" : "No toilets found within 20km. Be the first to add one!";
+                    setStatus(msg);
+                    document.getElementById('chip-nearest-text').textContent = `Nearest: --`;
+                    setLoading(false);
+                    return;
+                }
+
+                const nearestDist = all[0].dist;
+                document.getElementById('chip-nearest-text').textContent = `Nearest: ${fmtDist(nearestDist)}`;
+
+                const warnBanner = document.getElementById('warn-banner');
+                if (warnBanner) warnBanner.style.display = nearestDist > WARN_RADIUS_M ? 'flex' : 'none';
+
+                all.forEach((t, i) => {
+                    const isN = (i === 0);
+                    const m = L.marker([t.lat, t.lng], { icon: toiletIcon(isN, t.isUserAdded) })
+                        .addTo(map).on('click', () => showDetails(t));
+                    if (isN) nearestMarker = m;
+                    toiletMarkers.push(m);
+                });
+                nearestMarker && nearestMarker.fire('click');
+                map.fitBounds([userLatLng, ...all.map(t => [t.lat, t.lng])], { padding: [40, 40] });
+                setLoading(false);
+                setStatus(`Found ${all.length} toilets. Nearest is ${fmtDist(nearestDist)} away.`);
+            } catch (err) {
+                console.error("Critical Error in findToilets:", err);
+                setStatus("⚠️ An error occurred while fetching toilets.");
+                setLoading(false);
+            }
+        }
+
+        async function fetchOSM(c) {
+            const q = `[out:json];node["amenity"="toilets"](around:${SEARCH_RADIUS_M},${c.latitude},${c.longitude});out center;`;
+            let lastError = null;
+
+            for (let url of OVERPASS_URLS) {
+                try {
+                    console.log(`📡 Fetching OSM from: ${url}`);
+                    // Use GET format which is often more CORS friendly for simple interpreters
+                    const fetchUrl = `${url}?data=${encodeURIComponent(q)}`;
+                    const r = await fetch(fetchUrl);
+
+                    if (r.ok) {
+                        const j = await r.json();
+                        const count = j.elements ? j.elements.length : 0;
+                        console.log(`✅ OSM Success: Found ${count} toilets from ${url}`);
+                        return j.elements || [];
+                    } else {
+                        console.warn(`⚠️ OSM URL ${url} returned status ${r.status}`);
+                        lastError = `Status ${r.status}`;
+                        continue;
+                    }
+                } catch (e) {
+                    console.warn(`❌ OSM Network Error on ${url}:`, e);
+                    lastError = e;
+                }
+            }
+
+            console.error("🚫 All Overpass endpoints failed or rate limited.", lastError);
+            const result = [];
+            if (lastError && lastError.toString().includes("429")) {
+                result.rateLimited = true;
+            }
+            return result;
+        }
+
+        async function fetchCommunity() {
+            if (!db) return [];
+            try {
+                const s = await db.collection('community_toilets').get();
+                return s.docs.map(d => ({ id: d.id, ...d.data() }));
+            } catch (e) { return []; }
+        }
+
+        function showDetails(t) {
+            currentToiletId = t.id || `${t.lat}_${t.lng}`;
+            document.getElementById('card-name').textContent = t.name || t.tags?.name || 'Public Toilet';
+            document.getElementById('card-dist-badge').textContent = fmtDist(t.dist);
+            document.getElementById('directions-btn').href = `https://www.google.com/maps/dir/?api=1&destination=${t.lat},${t.lng}&travelmode=walking`;
+            document.getElementById('nearest-card').style.display = 'flex';
+            renderReviews();
+        }
+
+        async function renderReviews() {
+            if (!db) return;
+            const l = document.getElementById('reviews-list'); l.innerHTML = '';
+            try {
+                const s = await db.collection('reviews').where('toiletId', '==', currentToiletId).orderBy('date', 'desc').limit(3).get();
+                s.forEach(d => {
+                    const r = d.data(); const div = document.createElement('div');
+                    div.className = 'review-item'; div.innerHTML = `<div>${'★'.repeat(r.stars)}</div><div>${r.text}</div>`;
+                    l.appendChild(div);
+                });
+            } catch (e) { }
+        }
+
+        async function saveReview() {
+            if (!db) { const ok = await initFirebase(); if (!ok) return; }
+            const stars = document.querySelectorAll('#input-stars .star.filled').length;
+            const text = document.getElementById('review-text').value;
+            if (!currentToiletId) return;
+            try {
+                await db.collection('reviews').add({ toiletId: currentToiletId, stars, text, date: Date.now() });
+                alert('✅ Review posted!');
+                document.getElementById('review-text').value = '';
+                document.getElementById('add-review-form').style.display = 'none';
+                renderReviews();
+            } catch (err) { alert('❌ Failed: ' + err.message); }
+        }
+
+        document.querySelectorAll('#input-stars .star').forEach(s => {
+            s.onclick = (e) => {
+                const v = parseInt(e.target.dataset.val);
+                document.querySelectorAll('#input-stars .star').forEach(st => st.classList.toggle('filled', parseInt(st.dataset.val) <= v));
+                document.getElementById('add-review-form').style.display = 'flex';
+            };
+        });
+
+        function getDistanceM(lat1, lng1, lat2, lng2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+        function fmtDist(m) { return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`; }
+        function setLoading(o) { document.getElementById('find-btn').classList.toggle('loading', o); }
+        function setStatus(m) { document.getElementById('status-msg').textContent = m; }
+        function clearToilets() { toiletMarkers.forEach(m => m.remove()); toiletMarkers = []; }
+        function placeUserMarker(ll) { if (userMarker) userMarker.remove(); userMarker = L.marker(ll, { icon: userIcon() }).addTo(map); }
+        function toiletIcon(isN, isU) {
+            const cls = `toilet-marker-icon ${isN ? 'nearest' : ''} ${isU ? 'user-added' : ''}`;
+            const size = isN ? 32 : 26;
+            return L.divIcon({ className: '', html: `<div class="${cls}" style="width:${size}px;height:${size}px">🚻</div>`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+        }
+        function userIcon() {
+            return L.divIcon({
+                className: '',
+                html: `<div class="blue-dot"></div>`,
+                iconSize: [22, 22],
+                iconAnchor: [11, 11]
+            });
+        }
+        async function centerOnUser() {
+            const btn = document.getElementById('locate-btn');
+            try {
+                if (btn) btn.style.opacity = '0.5';
+                const coords = await getUserLocation();
+                userLatLng = L.latLng(coords.latitude, coords.longitude);
+                map.flyTo(userLatLng, 15);
+                placeUserMarker(userLatLng);
+            } catch (err) {
+                alert("Could not get your location. Please check permissions.");
+            } finally {
+                if (btn) btn.style.opacity = '1';
+            }
+        }
+        function getUserLocation() { return new Promise((res, rej) => navigator.geolocation.getCurrentPosition(p => res(p.coords), e => rej(e), { timeout: 10000 })); }
+
+        initMap();
+    </script>
+</body>
+
+</html>
