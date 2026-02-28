@@ -61,4 +61,5 @@ We believe in the power of community. You can contribute by:
 
 ---
 
-*© 2026 Clean Madurai Initiative · Built for the Citizens of Madurai*
+
+
